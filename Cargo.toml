@@ -5,3 +5,4 @@ authors = ["marin postma <postma.marin@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+rand = "0.7.0"

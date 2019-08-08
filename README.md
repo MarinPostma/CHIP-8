@@ -6,6 +6,7 @@
 ( (__  ) _ (  _)(_  )___/(___)/ _ \
  \___)(_) (_)(____)(__)       \___/
 ```
+
 ## /!\ WIP
 
 ## Intro
@@ -19,3 +20,4 @@ The ressources I used in the making of this project include:
 - https://en.wikipedia.org/wiki/CHIP-8
 - http://www.multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter/
 - http://emulator101.com/
+- http://www.cs.columbia.edu/~sedwards/classes/2016/4840-spring/designs/Chip8.pdf
