@@ -1,4 +1,5 @@
 use rand::prelude::*;
+use crate::rom_mgr::RomMgr;
 
 const PGM_OFFSET: usize = 0x200;
 
@@ -43,6 +44,12 @@ impl CPU {
         }
     }
 
+    // TODO: write test
+    pub fn load_rom(&mut self, rom: RomMgr) {
+        self.mem_cpy(&rom.bin, PGM_OFFSET);
+    }
+
+    // TODO: write test
     pub fn emulate(&mut self) {
         let hi = self.ram[self.pc] as u16;
         let lo = self.ram[self.pc + 1] as u16;
@@ -337,8 +344,7 @@ impl CPU {
     }
 
     // TODO: write test
-    fn mem_cpy(&mut self, src: &[u8], offset: u16) {
-        let offset = offset as usize;
+    fn mem_cpy(&mut self, src: &[u8], offset: usize) {
         let slice = &mut self.ram[offset..(offset + src.len())];
         slice.clone_from_slice(src);
     }

@@ -1,12 +1,12 @@
 use std::fs::File;
 use std::io::Read;
 
-struct rom_mgr {
+pub struct RomMgr {
     name: String,
-    bin: Vec<u8>,
+    pub bin: Vec<u8>,
 }
 
-impl rom_mgr {
+impl RomMgr {
     pub fn new(filename: String) -> Self {
         let mut file = File::open(&filename).expect("error while opening the file.");
         let mut data = Vec::new();
