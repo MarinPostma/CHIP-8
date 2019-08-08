@@ -1,5 +1,5 @@
 pub mod cpu;
-pub mod ram;
+pub mod rom_mgr;
 
 fn main() {
     println!("Hello, world!");
