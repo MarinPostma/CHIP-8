@@ -1,15 +1,36 @@
 use crate::ram::RAM;
 
-const INIT_PGM: u16 = 0x200;
-const INIT_SP u16 = 0xfa0;
 
+
+const PGM_OFFSET: usize = 0x200;
+
+// stack's not in the ram for convenience, as it is use 
+// to store adresses that are 16 bits
 pub struct CPU {
-    v: [u8; 16],
+    v: [u16; 16],
     i: u16,
-    sp: u16,
-    pc: u16,
+    ram: [u16; 4096],
+    stack: Vec<usize>,
+    pc: usize,
     delay: u8,
     sound: u8,
+}
+
+enum PcJump {
+    None,
+    Next,
+    Skip(usize),
+}
+
+impl PcJump {
+    
+    pub fn to_int(self) -> usize {
+        match self {
+            PcJump::None => 0,
+            PcJump::Next => 2,
+            PcJump::Skip(n) => n,
+        }
+    } 
 }
 
 impl CPU {
@@ -17,84 +38,181 @@ impl CPU {
         Self {
             v: [0; 16],
             i: 0,
-            sp: 0xfa0,
-            pc: INIT_PGM,
+            stack: Vec::with_capacity(16),
+            ram: [0; 4096],
+            pc: PGM_OFFSET,
             delay: 0,
             sound: 0,
         }
     }
 
-    pub fn emulate(&mut self, ram: &RAM) {
-        let hi = ram.read_byte(self.pc as usize) as u16;
-        let lo = ram.read_byte(( self.pc + 1 ) as usize) as u16;
-        let inst = hi << 8  | lo;
-        match inst {
-            0x00 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x01 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x02 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x03 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x04 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x05 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x06 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x07 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x08 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x09 => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0a => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0b => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0c => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0d => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0e => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            0x0f => {
-                unimplemented!("Instruction {:02x} not yet implemented", inst);
-            }
-            _ => unimplemented!("Instruction {:02x} not yet implemented", inst),
-        }
+    pub fn emulate2(&mut self) {
+        let hi = self.ram[self.pc] as u16;
+        let lo = self.ram[self.pc + 1] as u16;
+        let inst = hi << 8 | lo;
+
+        let nibs = (
+            ( inst & 0xf000 ) >> 12,
+            ( inst & 0x0f00 ) >> 8,
+            ( inst & 0x00f0 ) >> 4,
+            ( inst & 0x000f ),
+        );
+
+        let nnn = inst & 0x0fff;
+        let nn = inst & 0x00ff;
+        let n = inst & 0x000f;
+        let x = ( inst & 0x0f00 >> 8 ) as usize;
+        let y = ( inst & 0x00f0 >> 4 ) as usize;
+
+        self.pc += match nibs {
+            (0x00, 0x00, 0x0e, 0x0e) => self.op_00ee(), 
+            (0x00, 0x00, 0x0e, 0x00) => self.op_00e0(), 
+            (0x01, _, _, _) => self.op_1nnn(nnn), 
+            (0x02, _, _, _) => self.op_2nnn(nnn), 
+            (0x03, _, _, _) => self.op_3xnn(x, nn), 
+            (0x04, _, _, _) => self.op_4xnn(x, nn), 
+            (0x05, _, _, 0x00) => self.op_5xy0(x, y), 
+            (0x06, _, _, _) => self.op_6xnn(x, nn), 
+            (0x07, _, _, _) => self.op_7xnn(x, nn), 
+            (0x08, _, _, 0x00) => self.op_8xy0(x, y), 
+            (0x08, _, _, 0x01) => self.op_8xy1(x, y), 
+            (0x08, _, _, 0x02) => self.op_8xy2(x, y), 
+            (0x08, _, _, 0x03) => self.op_8xy3(x, y), 
+            (0x08, _, _, 0x04) => self.op_8xy4(x, y), 
+            (0x08, _, _, 0x05) => self.op_8xy5(x, y), 
+            (0x08, _, _, 0x06) => self.op_8xy7(x, y), 
+            (0x08, _, _, 0x0e) => self.op_8xye(x, y), 
+            (0x09, _, _, 0x00) => self.op_9xy0(x, y), 
+            (0x0a, _, _, _) => self.op_annn(nnn), 
+            (0x0b, _, _, _) => self.op_bnnn(nnn), 
+            (0x0c, _, _, _) => self.op_cxnn(x, nn), 
+            (0x0d, _, _, _) => self.op_dxyn(x, y, n), 
+            (0x0e, _, 0x09, 0x0e) => self.op_ex9e(x), 
+            (0x0e, _, 0x0a, 0x01) => self.op_exa1(x), 
+            (0x0f, _, 0x00, 0x07) => self.op_fx07(x), 
+            (0x0f, _, 0x00, 0x0a) => self.op_fx0a(x), 
+            (0x0f, _, 0x01, 0x05) => self.op_fx15(x), 
+            (0x0f, _, 0x01, 0x08) => self.op_fx18(x), 
+            (0x0f, _, 0x01, 0x0e) => self.op_fx1e(x), 
+            (0x0f, _, 0x02, 0x09) => self.op_fx29(x), 
+            (0x0f, _, 0x03, 0x03) => self.op_fx33(x), 
+            (0x0f, _, 0x05, 0x05) => self.op_fx55(x), 
+            (0x0f, _, 0x06, 0x05) => self.op_fx65(x), 
+            _ => PcJump::Next,
+        }.to_int();
+    }
+
+    fn op_00ee(&mut self) -> PcJump {
+        self.pc = self.stack.pop().expect("Stack Underflow!") as usize;
+        PcJump::None
+    }
+
+    fn op_00e0(&mut self) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+
+    fn op_1nnn(&mut self, nnn: u16) -> PcJump {
+        self.pc = nnn as usize;
+        PcJump::None
+    }
+
+    fn op_2nnn(&mut self, nnn: u16) -> PcJump {
+        self.stack.push(self.pc);
+        self.pc = nnn as usize;
+        PcJump::None
+    }
+    fn op_3xnn(&mut self, x: usize, nn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_4xnn(&mut self, x: usize, nn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_5xy0(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_6xnn(&mut self, x: usize, nn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_7xnn(&mut self, x: usize, nn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy0(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy1(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy2(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy3(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy4(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy5(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy6(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xy7(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_8xye(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_9xy0(&mut self, x:usize, y: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_annn(&mut self, nnn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_bnnn(&mut self, nnn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_cxnn(&mut self, x: usize, nn: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_dxyn(&mut self, x: usize, y:usize, n: u16) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_ex9e(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_exa1(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx07(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx0a(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx15(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx18(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx1e(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx29(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx33(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx55(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
+    }
+    fn op_fx65(&mut self, x: usize) -> PcJump {
+        unimplemented!("Op not implemented!");
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::CPU;
-
-    #[test]
-    fn test_new() {
-        let cpu = CPU::new();
-
-        assert_eq!(cpu.delay, 0);
-        assert_eq!(cpu.pc, 0x200);
-        assert_eq!(cpu.sp, 0);
-        assert_eq!(cpu.i, 0);
-        assert_eq!(cpu.sound, 0);
-        assert_eq!(cpu.v, [0; 16]);
-    }
 }
