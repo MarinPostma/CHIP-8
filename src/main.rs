@@ -1,7 +1,9 @@
+pub mod config;
 pub mod cpu;
 pub mod debugger;
 pub mod rom_mgr;
 
+use config::*;
 use cpu::Tick;
 use std::env::args;
 use v_display::display::DisplayBuilder;
@@ -56,10 +58,15 @@ fn main() {
         .expect("A ROM file should be provided as argument");
     let mut cpu = cpu::CPU::new();
     let rom = rom_mgr::RomMgr::new(&filename);
-    let mut display = DisplayBuilder::new(&filename, 64, 32, 10)
-        .with_margin(5, 5)
-        .build()
-        .unwrap();
+    let mut display = DisplayBuilder::new(
+        &filename,
+        DISPLAY_WIDTH as u32,
+        DISPLAY_HEIGHT as u32,
+        PIX_SIZE as u32,
+    )
+    .with_margin(5, 5)
+    .build()
+    .unwrap();
     cpu.load_rom(rom);
     'main: loop {
         for event in display.get_event_pump().poll_iter() {
@@ -83,7 +90,12 @@ fn main() {
         cpu.tick();
         if cpu.draw {
             cpu.draw = false;
-            display.from_buffer(&cpu.vram);
+            display.from_buffer(
+                &cpu.vram
+                    .iter()
+                    .map(|p| if *p { FG_COLOR } else { BG_COLOR })
+                    .collect::<Vec<(u8, u8, u8)>>(),
+            );
             display.refresh();
         }
         std::thread::sleep(std::time::Duration::from_millis(2));

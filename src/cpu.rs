@@ -1,3 +1,4 @@
+use crate::config::*;
 use crate::rom_mgr::RomMgr;
 use rand::prelude::*;
 use v_display::sdl2::keyboard::Keycode;
@@ -12,7 +13,7 @@ pub struct CPU {
     pub v: [u8; 16],
     pub i: usize,
     pub ram: [u8; 4096],
-    pub vram: [(u8, u8, u8); 64 * 32],
+    pub vram: [bool; 64 * 32],
     pub stack: Vec<usize>,
     pub pc: usize,
     pub delay: u8,
@@ -44,7 +45,7 @@ impl CPU {
             i: 0,
             stack: Vec::with_capacity(16),
             ram: [0; 4096],
-            vram: [(0, 0, 0); 64 * 32],
+            vram: [false; 64 * 32],
             pc: PGM_OFFSET,
             delay: 0,
             sound: 0,
@@ -154,35 +155,31 @@ impl Tick for CPU {
 
 impl CPU {
     // RET
-    // TODO: write test
     fn op_00ee(&mut self) -> PcJump {
         self.pc = self.stack.pop().expect("Stack Underflow!") as usize;
-        PcJump::Next
+        PcJump::None
     }
 
     // CLS: Clear screen
     fn op_00e0(&mut self) -> PcJump {
-        self.vram.iter_mut().for_each(|x| *x = (0, 0, 0));
+        self.vram.iter_mut().for_each(|x| *x = false);
         PcJump::Next
     }
 
     //JMP to nnn
-    // TODO: write test
     fn op_1nnn(&mut self, nnn: usize) -> PcJump {
         self.pc = nnn as usize;
         PcJump::None
     }
 
     // CALL nnn
-    // TODO: write test
     fn op_2nnn(&mut self, nnn: usize) -> PcJump {
-        self.stack.push(self.pc);
+        self.stack.push(self.pc + 2);
         self.pc = nnn as usize;
         PcJump::None
     }
 
-    //SKIP.EP: skip if Vx == nn
-    // TODO: write test
+    //SKIP.Eq: skip if Vx == nn
     fn op_3xnn(&mut self, x: usize, nn: u8) -> PcJump {
         if self.v[x] == nn {
             PcJump::Skip
@@ -192,7 +189,6 @@ impl CPU {
     }
 
     //SKIP.NE: skip if Vx != nn
-    // TODO: write test
     fn op_4xnn(&mut self, x: usize, nn: u8) -> PcJump {
         if self.v[x] != nn {
             PcJump::Skip
@@ -202,9 +198,8 @@ impl CPU {
     }
 
     //SKIP.EP: skip if Vx == Vy
-    // TODO: write test
     fn op_5xy0(&mut self, x: usize, y: usize) -> PcJump {
-        if self.v[x] == self.v[y as usize] {
+        if self.v[x] == self.v[y] {
             PcJump::Skip
         } else {
             PcJump::Next
@@ -212,14 +207,12 @@ impl CPU {
     }
 
     // LOAD nn in Vx
-    // TODO: write test
     fn op_6xnn(&mut self, x: usize, nn: u8) -> PcJump {
         self.v[x] = nn;
         PcJump::Next
     }
 
     // ADD nn to Vx
-    // TODO: write test
     fn op_7xnn(&mut self, x: usize, nn: u8) -> PcJump {
         let vx = self.v[x] as u16;
         let nn = nn as u16;
@@ -228,7 +221,6 @@ impl CPU {
     }
 
     //LOAD Vy in Vx
-    // TODO: write test
     fn op_8xy0(&mut self, x: usize, y: usize) -> PcJump {
         self.v[x] = self.v[y];
         PcJump::Next
@@ -254,33 +246,27 @@ impl CPU {
 
     fn op_8xy4(&mut self, x: usize, y: usize) -> PcJump {
         self.v[0xf] = 0;
-        self.v[x] = match self.v[x].checked_add(self.v[y]) {
-            Some(val) => val,
-            None => {
-                self.v[0xf] = 1;
-                let vx = self.v[x] as u16;
-                let vy = self.v[y] as u16;
-                (vx + vy) as u8
-            }
-        };
+        let vx = self.v[x] as u16;
+        let vy = self.v[y] as u16;
+        let vx = vx + vy;
+        if vx > 0xff {
+            self.v[0xf] = 1;
+        }
+        self.v[x] = vx as u8;
         PcJump::Next
     }
 
     // TODO: write test
     fn op_8xy5(&mut self, x: usize, y: usize) -> PcJump {
-        if self.v[x] > self.v[y] {
-            self.v[0xf] = 1;
-        } else {
-            self.v[0xf] = 0;
-        }
+        self.v[0xf] = if self.v[x] > self.v[y] { 1 } else { 0 };
         self.v[x] = self.v[x].wrapping_sub(self.v[y]);
         PcJump::Next
     }
 
     // TODO: write test
     fn op_8xy6(&mut self, x: usize, _y: usize) -> PcJump {
-        self.v[0xf] = if self.v[x] & 0x01 == 1 { 1 } else { 0 };
-        self.v[x] >>= 2;
+        self.v[0xf] = self.v[x] & 0x01;
+        self.v[x] >>= 1;
         PcJump::Next
     }
 
@@ -293,8 +279,8 @@ impl CPU {
 
     // TODO: write test
     fn op_8xye(&mut self, x: usize, _y: usize) -> PcJump {
-        self.v[0xf] = if self.v[x] & 0x80 == 1 { 1 } else { 0 };
-        self.v[x] <<= 2;
+        self.v[0xf] = (self.v[x] & 0x80) >> 7;
+        self.v[x] <<= 1;
         PcJump::Next
     }
 
@@ -315,8 +301,8 @@ impl CPU {
 
     // TODO: write test
     fn op_bnnn(&mut self, nnn: usize) -> PcJump {
-        self.pc = (self.v[0] as usize + nnn) as usize;
-        PcJump::Next
+        self.pc = self.v[0] as usize + nnn;
+        PcJump::None
     }
 
     // TODO: write test
@@ -326,25 +312,20 @@ impl CPU {
     }
 
     fn op_dxyn(&mut self, x: usize, y: usize, n: u8) -> PcJump {
-        self.draw = true;
-        for offset_y in 0..n as usize {
-            let byte = self.ram[self.i + offset_y];
-            for offset_x in 0..8 {
-                let pixel = self.is_set_pix_at(
-                    (self.v[x] as usize + offset_x) % 64,
-                    (self.v[y] as usize + offset_y) % 32,
-                );
-                let new_pixel = byte & (0x80 >> offset_x) != 0;
-                if pixel && new_pixel {
+        self.v[0xf] = 0;
+        for j in 0..n {
+            let y = (self.v[y] as usize + j as usize) % DISPLAY_HEIGHT;
+            for i in 0..8 {
+                let x = (self.v[x] + i) as usize % DISPLAY_WIDTH;
+                let old_pix_color = self.vram[y * DISPLAY_WIDTH + x];
+                let new_pix_color = self.ram[self.i as usize + j as usize] & (0x80 >> i) != 0;
+                if old_pix_color && new_pix_color {
                     self.v[0xf] = 1;
                 }
-                self.set_pix_at(
-                    (self.v[x] as usize + offset_x) % 64,
-                    (self.v[y] as usize + offset_y) % 32,
-                    pixel ^ new_pixel,
-                );
+                self.vram[y * DISPLAY_WIDTH + x] = new_pix_color ^ old_pix_color;
             }
         }
+        self.draw = true;
         PcJump::Next
     }
 
@@ -360,10 +341,8 @@ impl CPU {
     // TODO: write test
     fn op_exa1(&mut self, x: usize) -> PcJump {
         if !self.key_press[self.v[x] as usize] {
-            println!("skip");
             PcJump::Skip
         } else {
-            println!("next");
             PcJump::Next
         }
     }
@@ -405,12 +384,13 @@ impl CPU {
     // TODO: write test
     fn op_fx1e(&mut self, x: usize) -> PcJump {
         self.i += self.v[x] as usize;
+        self.v[0x0f] = if self.i > 0x0F00 { 1 } else { 0 };
         PcJump::Next
     }
 
     // TODO: write test
     fn op_fx29(&mut self, x: usize) -> PcJump {
-        self.i = x * 5;
+        self.i = self.v[x] as usize * 5;
         PcJump::Next
     }
 
@@ -443,14 +423,6 @@ impl CPU {
         let slice = &mut self.ram[offset..(offset + src.len())];
         slice.clone_from_slice(src);
     }
-
-    fn is_set_pix_at(&self, x: usize, y: usize) -> bool {
-        self.vram[y * 64 + x] == (255, 255, 255)
-    }
-
-    fn set_pix_at(&mut self, x: usize, y: usize, on: bool) {
-        self.vram[y * 64 + x] = if on { (255, 255, 255) } else { (0, 0, 0) };
-    }
 }
 
 #[cfg(test)]
@@ -468,28 +440,18 @@ mod tests {
     #[test]
     fn test_op_8xy4() {
         let mut cpu = CPU::new();
+        cpu.v[0] = 1;
+        cpu.v[1] = 1;
+        cpu.op_8xy4(0, 1);
+        assert_eq!(cpu.v[0], 2);
         assert_eq!(cpu.v[0xf], 0);
 
-        //check addition with no overflow
-        cpu.v[1] = 3;
-        cpu.v[2] = 2;
-        cpu.op_8xy4(1, 2);
-        assert_eq!(cpu.v[0xf], 0);
-        assert_eq!(cpu.v[1], 5);
-
-        //check addition with overflow
-        cpu.v[1] = 255;
-        cpu.v[2] = 255;
-        cpu.op_8xy4(1, 2);
+        //test overflow
+        cpu.v[0] = 0xff;
+        cpu.v[1] = 0xff;
+        cpu.op_8xy4(0, 1);
+        assert_eq!(cpu.v[0], 0xfe);
         assert_eq!(cpu.v[0xf], 1);
-        assert_eq!(cpu.v[1], 0xfe);
-
-        //check Vf is reset on next addition :
-        cpu.v[1] = 3;
-        cpu.v[2] = 2;
-        cpu.op_8xy4(1, 2);
-        assert_eq!(cpu.v[0xf], 0);
-        assert_eq!(cpu.v[1], 5);
     }
 
     #[test]
@@ -546,17 +508,5 @@ mod tests {
         cpu.tick();
         cpu.tick();
         assert_eq!(cpu.v[0xf], 1);
-    }
-
-    #[test]
-    fn test_op_00e0() {
-        let mut cpu = CPU::new();
-
-        cpu.vram[8] = (2, 64, 34);
-        let expected: &[(u8, u8, u8)] = &[(0, 0, 0); 64 * 32];
-        cpu.op_00e0();
-        for i in 0..2048 {
-            assert_eq!(cpu.vram[i], expected[i]);
-        }
     }
 }
