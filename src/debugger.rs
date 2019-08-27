@@ -1,4 +1,4 @@
-use crate::cpu::{Tick, CPU};
+use crate::cpu::{Processor, CPU};
 use std::io;
 
 pub struct Debugger {
@@ -81,7 +81,15 @@ impl Debugger {
     }
 }
 
-impl Tick for Debugger {
+impl Processor for Debugger {
+    fn should_redraw(&self) -> bool {
+        self.cpu.should_redraw()
+    }
+
+    fn drawn(&mut self) {
+        self.cpu.drawn();
+    }
+
     fn tick(&mut self) {
         self.print_state();
         self.cpu.tick();

@@ -1,12 +1,14 @@
 use crate::config::*;
-use crate::rom_mgr::RomMgr;
 use rand::prelude::*;
-use v_display::sdl2::keyboard::Keycode;
 
 const PGM_OFFSET: usize = 0x200;
 
-pub trait Tick {
+pub trait Processor {
     fn tick(&mut self);
+    fn should_redraw(&self) -> bool;
+    fn drawn(&mut self);
+    fn get_vram_buffer(&self, buffer: &mut [(u8, u8, u8)]);
+    fn load_rom(&mut self, rom: &[u8]);
 }
 
 pub struct CPU {
@@ -55,38 +57,23 @@ impl CPU {
         cpu.mem_cpy(&include!("chars.in"), 0);
         cpu
     }
-
-    // TODO: write test
-    pub fn load_rom(&mut self, rom: RomMgr) {
-        self.mem_cpy(&rom.bin, PGM_OFFSET);
-    }
-
-    pub fn set_key_down(&mut self, key: Keycode, pos: bool) {
-        use Keycode::*;
-        match key {
-            Num1 => self.key_press[1] = pos,
-            Num2 => self.key_press[2] = pos,
-            Num3 => self.key_press[3] = pos,
-            Num4 => self.key_press[0xc] = pos,
-            Q => self.key_press[4] = pos,
-            W => self.key_press[5] = pos,
-            E => self.key_press[6] = pos,
-            R => self.key_press[0xd] = pos,
-            A => self.key_press[7] = pos,
-            S => self.key_press[8] = pos,
-            D => self.key_press[9] = pos,
-            F => self.key_press[0xe] = pos,
-            Z => self.key_press[0xa] = pos,
-            X => self.key_press[0] = pos,
-            C => self.key_press[0xb] = pos,
-            V => self.key_press[0xf] = pos,
-            _ => (),
-        }
-    }
 }
 
-impl Tick for CPU {
-    // TODO: write test
+impl Processor for CPU {
+    fn load_rom(&mut self, rom: &[u8]) {
+        self.mem_cpy(&rom, PGM_OFFSET);
+    }
+    fn get_vram_buffer(&self, buffer: &mut [(u8, u8, u8)]) {
+        unimplemented!()
+    }
+
+    fn should_redraw(&self) -> bool {
+        self.draw
+    }
+    fn drawn(&mut self) {
+        self.draw = false;
+    }
+
     fn tick(&mut self) {
         let hi = self.ram[self.pc] as u16;
         let lo = self.ram[self.pc + 1] as u16;
