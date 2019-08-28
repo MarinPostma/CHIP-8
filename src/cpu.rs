@@ -315,7 +315,7 @@ impl CPU {
         for j in 0..n {
             let y = (self.v[y] as usize + j as usize) % DISPLAY_HEIGHT;
             for i in 0..8 {
-                let x = (self.v[x] + i) as usize % DISPLAY_WIDTH;
+                let x = (self.v[x] as usize + i) % DISPLAY_WIDTH;
                 let old_pix_color = self.vram[y * DISPLAY_WIDTH + x];
                 let new_pix_color = self.ram[self.i as usize + j as usize] & (0x80 >> i) != 0;
                 if old_pix_color && new_pix_color {
