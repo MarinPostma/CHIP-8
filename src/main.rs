@@ -23,6 +23,6 @@ fn main() {
     .build()
     .unwrap();
     let mut chip8 = chip8::Chip8::new(display, cpu);
-    chip8.load(filename);
+    chip8.load(&filename);
     chip8.run();
 }

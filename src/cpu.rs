@@ -9,6 +9,7 @@ pub trait Processor {
     fn drawn(&mut self);
     fn get_vram_buffer(&self, buffer: &mut [(u8, u8, u8)]);
     fn load_rom(&mut self, rom: &[u8]);
+    fn set_key_press(&mut self, key: u8, is_down: bool);
 }
 
 pub struct CPU {
@@ -60,11 +61,22 @@ impl CPU {
 }
 
 impl Processor for CPU {
+    fn set_key_press(&mut self, key: u8, is_down: bool) {
+        self.key_press[key as usize] = is_down;
+    }
+
     fn load_rom(&mut self, rom: &[u8]) {
         self.mem_cpy(&rom, PGM_OFFSET);
     }
+
     fn get_vram_buffer(&self, buffer: &mut [(u8, u8, u8)]) {
-        unimplemented!()
+        for i in 0..self.vram.len() {
+            if self.vram[i] {
+                buffer[i] = (0xff, 0xff, 0xff);
+            } else {
+                buffer[i] = (0, 0, 0);
+            }
+        }
     }
 
     fn should_redraw(&self) -> bool {

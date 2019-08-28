@@ -82,6 +82,18 @@ impl Debugger {
 }
 
 impl Processor for Debugger {
+    fn load_rom(&mut self, rom: &[u8]) {
+        self.cpu.load_rom(rom);
+    }
+
+    fn get_vram_buffer(&self, buffer: &mut [(u8, u8, u8)]) {
+        self.cpu.get_vram_buffer(buffer)
+    }
+
+    fn set_key_press(&mut self, key: u8, is_down: bool) {
+        self.cpu.set_key_press(key, is_down);
+    }
+
     fn should_redraw(&self) -> bool {
         self.cpu.should_redraw()
     }
