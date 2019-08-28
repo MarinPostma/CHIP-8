@@ -7,12 +7,16 @@
  \___)(_) (_)(____)(__)       \___/
 ```
 
-## /!\ WIP
-
 ## Intro
-
+![brix](./brix.png)
 This is my implementation of the CHIP-8 VM. This is also my first attempt to implement an emulator.
 
+## TODO
+
+- [ ] Implement debugger (partially done)
+- [ ] Parse the rom as an enum array for better interoperability between cpu and debugger
+
+## Ressources
 The ressources I used in the making of this project include:
 
 - http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
