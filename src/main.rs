@@ -12,8 +12,8 @@ fn main() {
         .into_iter()
         .nth(1)
         .expect("A ROM file should be provided as argument");
-    let mut cpu = cpu::CPU::new();
-    let mut display = DisplayBuilder::new(
+    let cpu = cpu::CPU::new();
+    let display = DisplayBuilder::new(
         &filename,
         DISPLAY_WIDTH as u32,
         DISPLAY_HEIGHT as u32,

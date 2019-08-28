@@ -1,5 +1,4 @@
 use crate::cpu::{Processor, CPU};
-use std::io;
 
 pub struct Debugger {
     pub cpu: CPU,
@@ -82,6 +81,9 @@ impl Debugger {
 }
 
 impl Processor for Debugger {
+    fn get_sound_timer(&self) -> u8 {
+        self.cpu.get_sound_timer()
+    }
     fn load_rom(&mut self, rom: &[u8]) {
         self.cpu.load_rom(rom);
     }
@@ -108,13 +110,3 @@ impl Processor for Debugger {
     }
 }
 
-fn wait_command() -> bool {
-    let mut input = String::new();
-    print! {"> "};
-    io::stdin().read_line(&mut input).unwrap();
-    if input == "n" {
-        true
-    } else {
-        false
-    }
-}

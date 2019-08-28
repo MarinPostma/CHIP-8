@@ -2,11 +2,13 @@ use crate::cpu::Processor;
 use std::fs::File;
 use std::io::Read;
 use v_display::display::Display;
+use v_display::sdl2::audio::{AudioCallback, AudioDevice, AudioSpecDesired};
 use v_display::sdl2::event::Event;
 use v_display::sdl2::keyboard::Keycode;
 
 pub struct Chip8<T: Processor> {
     display: Display,
+    sound_device: AudioDevice<SquareWave>,
     cpu: T,
 }
 
@@ -14,6 +16,27 @@ pub struct Chip8<T: Processor> {
 pub enum State {
     Continue,
     Stop,
+}
+
+struct SquareWave {
+    phase: f32,
+    phase_inc: f32,
+    volume: f32,
+}
+
+impl AudioCallback for SquareWave {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [Self::Channel]) {
+        for x in out.iter_mut() {
+            *x = if self.phase >= 0.5 {
+                self.volume
+            } else {
+                -self.volume
+            };
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+    }
 }
 
 macro_rules! set_key {
@@ -45,9 +68,23 @@ where
     T: Processor,
 {
     pub fn new(display: Display, cpu: T) -> Self {
+        let audio_subsystem = display.context.audio().unwrap();
+        let desired_specs = AudioSpecDesired {
+            freq: Some(44100),
+            channels: Some(1),
+            samples: None,
+        };
+        let device = audio_subsystem
+            .open_playback(None, &desired_specs, |spec| SquareWave {
+                phase_inc: 440.0 / spec.freq as f32,
+                phase: 0.0,
+                volume: 0.25,
+            })
+            .unwrap();
         Self {
             cpu: cpu,
             display: display,
+            sound_device: device,
         }
     }
 
@@ -68,6 +105,11 @@ where
                 self.cpu.get_vram_buffer(&mut buffer);
                 self.display.from_buffer(&buffer);
                 self.display.refresh();
+            }
+            if self.cpu.get_sound_timer() > 0 {
+                self.sound_device.resume();
+            } else {
+                self.sound_device.pause();
             }
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
