@@ -1,3 +1,4 @@
+use super::config::*;
 use crate::cpu::Processor;
 use std::fs::File;
 use std::io::Read;
@@ -82,8 +83,8 @@ where
             })
             .unwrap();
         Self {
-            cpu: cpu,
-            display: display,
+            cpu,
+            display,
             sound_device: device,
         }
     }
@@ -96,8 +97,9 @@ where
         self.cpu.load_rom(&data)
     }
 
-    pub fn run(&mut self) {
-        let mut buffer: [(u8, u8, u8); 64 * 32] = [(0, 0, 0); 64 * 32];
+    pub fn run(&mut self, clock_time: u64) {
+        let mut buffer: [(u8, u8, u8); DISPLAY_WIDTH * DISPLAY_HEIGHT] =
+            [(0, 0, 0); DISPLAY_WIDTH * DISPLAY_HEIGHT];
         while self.send_key_event() == State::Continue {
             self.cpu.tick();
             if self.cpu.should_redraw() {
@@ -111,7 +113,7 @@ where
             } else {
                 self.sound_device.pause();
             }
-            std::thread::sleep(std::time::Duration::from_millis(2));
+            std::thread::sleep(std::time::Duration::from_millis(clock_time));
         }
     }
     pub fn send_key_event(&mut self) -> State {

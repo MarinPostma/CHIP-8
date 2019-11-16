@@ -13,8 +13,7 @@ This is my implementation of the CHIP-8 VM. This is also my first attempt to imp
 
 ## TODO
 
-- [ ] Implement debugger (partially done)
-- [ ] Parse the rom as an enum array for better interoperability between cpu and debugger
+- [x] Implement debugger (very basic)
 
 ## Ressources
 The ressources I used in the making of this project include:
@@ -25,3 +24,4 @@ The ressources I used in the making of this project include:
 - http://www.multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter/
 - http://emulator101.com/
 - http://www.cs.columbia.edu/~sedwards/classes/2016/4840-spring/designs/Chip8.pdf
+- https://github.com/dmatlack/chip8
